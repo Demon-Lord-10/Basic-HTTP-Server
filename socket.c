@@ -10,7 +10,8 @@
 
 int main(){
 
-	int server_fd,client_addr_len;
+	int server_fd;
+	socklen_t client_addr_len;
 	struct sockaddr_in client_addr;
 
 
