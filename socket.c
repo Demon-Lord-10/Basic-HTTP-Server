@@ -58,7 +58,8 @@ int main(){
 		return 1;
 	}
 
-	printf("Waiting for a client to connect...\n");
+   	
+	printf("HTTP server running on http://localhost:4221\n");
 	client_addr_len = sizeof(client_addr);
 	
 	//ACCEPT
@@ -69,6 +70,21 @@ int main(){
 		close(server_fd);
 		return 1;
 	}
+
+	 // Read HTTP request (ignore content, just receive)
+    	char buffer[4096];
+    	read(client_fd, buffer, sizeof(buffer) - 1);
+
+	// Prepare HTTP response
+    	const char *response =
+        	"HTTP/1.1 200 OK\r\n"						// Carrier Return Line Feed basically represents a new line
+        	"Content-Type: text/html\r\n"
+        	"Connection: close\r\n"
+        	"\r\n"
+        	"<html><body><h1>Hello, Browser!</h1><p>This is a minimal HTTP server in C.</p></body></html>\r\n";
+
+	// Send HTTP response
+    	write(client_fd, response, strlen(response));
 
 	printf("Client connected\n");
 	close(client_fd);
