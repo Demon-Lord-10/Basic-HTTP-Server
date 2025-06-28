@@ -51,10 +51,50 @@ void handle_client(int client_fd) {
 
     // Simple routing
     if (strcmp(path, "/") == 0) {
-        send_response(client_fd, "200 OK", "<html><h1>Home</h1></html>");
+        send_response(client_fd, "200 OK", "<html><h1><b>Hello World!</b></h1></html>");
     } else if (strcmp(path, "/hello") == 0) {
         send_response(client_fd, "200 OK", "<html>Hello!</html>");
-    } else {
+    }
+    else if(strncmp(path,"/echo/",6)==0){
+	char *body = path+6;
+        if (body) {
+            send_response(client_fd, "200 OK", body);
+	}
+        else {
+            send_response(client_fd, "400 Bad Request", "<html>No body found</html>");
+        }
+    }
+    else if(strcmp(path,"/user-agent")==0){
+	char *headers = strstr(buffer, "\r\n");
+    	if (!headers) {
+        	send_response(client_fd, "400 Bad Request", "No headers found");
+        	return;
+    	}
+    	headers += 2; // Skip the first \r\n
+
+    	// Copy headers to a temp buffer for safe tokenizing
+    	char headers_copy[BUFFER_SIZE];
+    	strncpy(headers_copy, headers, sizeof(headers_copy) - 1);
+    	headers_copy[sizeof(headers_copy) - 1] = '\0';
+
+    	// Loop through header lines to find User-Agent
+    	char *line = strtok(headers_copy, "\r\n");
+    	char *user_agent = NULL;
+    	while (line != NULL) {
+        if (strncmp(line, "User-Agent:", 11) == 0) {
+            user_agent = line + 12; // Skip "User-Agent: "
+            break;
+        }
+        line = strtok(NULL, "\r\n");
+    	}
+
+    	if (user_agent && *user_agent) {
+        send_response(client_fd, "200 OK", user_agent);
+    	} else {
+        send_response(client_fd, "404 Not Found", "User-Agent header not found");
+    	}
+	}
+    else {
         send_response(client_fd, "404 Not Found", "<html>Not Found</html>");
     }
 
