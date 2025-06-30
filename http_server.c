@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -33,13 +34,15 @@ void send_response(int client_fd, const char *status, const char *content_type, 
 }
 
 // Handle client requests
-void handle_client(int client_fd) {
+void* handle_client(void* arg) {
+    int client_fd = *(int*)arg;
+    free(arg);
     char buffer[BUFFER_SIZE];
     ssize_t bytes_read = read(client_fd, buffer, sizeof(buffer) - 1);
     if (bytes_read <= 0) {
         fprintf(stderr, "Read failed: %s\n", strerror(errno));
         close(client_fd);
-        return;
+        return NULL;							//since we r returning void*
     }
     buffer[bytes_read] = '\0';
 
@@ -47,7 +50,7 @@ void handle_client(int client_fd) {
     if (sscanf(buffer, "%15s %1023s", method, path) != 2) {
         fprintf(stderr, "Invalid request format\n");
         close(client_fd);
-        return;
+        return NULL;							//returning void*
     }
 
     // Simple routing
@@ -69,7 +72,7 @@ void handle_client(int client_fd) {
 	char *headers = strstr(buffer, "\r\n");
     	if (!headers) {
         	send_response(client_fd, "400 Bad Request","html", "No headers found");
-        	return;
+        	return NULL;
     	}
     	headers += 2; // Skip the first \r\n
 
@@ -101,6 +104,7 @@ void handle_client(int client_fd) {
 
     printf("Handled %s request for %s\n", method, path);
     close(client_fd);
+    return NULL;
 }
 
 // Create, bind, and listen on socket
@@ -157,7 +161,20 @@ int main() {
             fprintf(stderr, "Accept failed: %s\n", strerror(errno));
             continue;
         }
-        handle_client(client_fd);
+	//Adding Multi Threading
+	int* client_fd_ptr = (int*)malloc(sizeof(int));      
+	*client_fd_ptr = client_fd;
+	
+	pthread_t tid;                //Thread id
+	
+	if(pthread_create(&tid, NULL, handle_client, client_fd_ptr) != 0){
+		
+		free(client_fd_ptr);
+		close(client_fd);
+	}
+	else{
+		pthread_detach(tid);
+	}
     }
 
     close(server_fd);
