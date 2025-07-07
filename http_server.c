@@ -1,3 +1,4 @@
+#include <stddef.h>
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -9,11 +10,24 @@
 #include <stdio.h>
 #include <errno.h>
 #include <pthread.h>
+#include <sys/stat.h>
 
 #define PORT 4221
 #define MAX_CLIENTS 5
 #define BUFFER_SIZE 4096
 #define RESPONSE_SIZE 2048
+
+// Helper to guess content type from file extension
+const char* get_mime_type(const char* filename) {
+    const char* ext = strrchr(filename, '.');
+    if (!ext) return "application/octet-stream";
+    if (strcmp(ext, ".html") == 0) return "text/html";
+    if (strcmp(ext, ".txt") == 0) return "text/plain";
+    if (strcmp(ext, ".jpg") == 0) return "image/jpeg";
+    if (strcmp(ext, ".png") == 0) return "image/png";
+    // Add more as needed
+    return "application/octet-stream";
+}
 
 // Send HTTP response
 void send_response(int client_fd, const char *status, const char *content_type, const char *body) {
@@ -31,6 +45,56 @@ void send_response(int client_fd, const char *status, const char *content_type, 
     if (bytes_sent < 0) {
         fprintf(stderr, "Write failed: %s\n", strerror(errno));
     }
+}
+
+//Sending file responses
+void send_file_response(int client_fd, const char* filename){
+	FILE *fp = fopen(filename,"rb");
+	if(!fp){
+		send_response(client_fd,"404 Not Found","html","<html> File Not Found </html>");
+		return;
+	}
+ 	
+	//to get size of the file
+	struct stat st;
+
+	if(stat(filename,&st) != 0){                      
+		fclose(fp);
+		send_response(client_fd,"500 Internal Server Error", "html", "<html>Could not stat file</html>");
+		return;
+	}
+
+	size_t filesize = st.st_size;
+
+	//make buffer and read the file
+	
+	char *buffer = malloc(filesize);
+	if(!buffer){
+		fclose(fp);
+		send_response(client_fd, "500 Internal Server Error", "html", "<html>Memory error</html>");
+		return;
+	}
+	fread(buffer,1,filesize,fp);   //Reads data from a file: fread takes a file pointer, a buffer to store the data, the size of each element, and the number of elements to read as arguments. 
+	
+	fclose(fp);
+
+	//Prepare HTTP headers
+	char header[1024];
+	const char* mime = get_mime_type(filename);
+    	snprintf(header, sizeof(header),
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Type: %s\r\n"
+        "Content-Length: %zu\r\n"
+        "Connection: close\r\n"
+        "\r\n", mime, filesize);
+	
+ 	//send header and file content
+	send(client_fd, header, strlen(header), 0);
+    	send(client_fd, buffer, filesize, 0);
+
+    free(buffer);	
+
+
 }
 
 // Handle client requests
@@ -98,9 +162,17 @@ void* handle_client(void* arg) {
         send_response(client_fd, "404 Not Found","plain", "User-Agent header not found");
     	}
 	}
-    else {
-        send_response(client_fd, "404 Not Found","html", "<html>Not Found</html>");
-    }
+	else if (strncmp(path, "/file/", 6) == 0) {
+ 	   	char *filename = path + 6; // Get the filename from the path
+    		if (filename && strlen(filename) > 0) {
+        	send_file_response(client_fd, filename);
+    		} else {
+        	send_response(client_fd, "400 Bad Request", "html", "<html>No filename specified</html>");
+    		}
+	}
+    	else {
+        	send_response(client_fd, "404 Not Found","html", "<html>Not Found</html>");
+    	}
 
     printf("Handled %s request for %s\n", method, path);
     close(client_fd);
