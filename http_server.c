@@ -29,7 +29,35 @@ const char* get_mime_type(const char* filename) {
     return "application/octet-stream";
 }
 
-// Send HTTP response
+/*-----------------------------------------------------------------------------------------------------------------------------------------------------
+ *Send Response
+ *-----------------------------------------------------------------------------------------------------------------------------------------------------
+ * For the Send Response function we take the following as the input
+ *
+ * 	1)Client_file_descriptor
+ *	2)Satus code
+ *	3)Content type
+ *	4)Body
+ *
+ * What this function does:
+ * 	-prepares an HTTP response for the required routing done
+ *
+ * What our responses will look like
+ *
+ *       "HTTP/1.1 %s\r\n"
+ *       "Content-Type: text/{content_type}\r\n"
+ *       "Content-Length: {content_length}\r\n"
+ *       "Connection: close\r\n"
+ *       "\r\n"
+ *       {body}
+ *
+ *	to send the response we use write fn, which takes in the client_fd, response,and response length
+ *
+ *
+ *
+ *-----------------------------------------------------------------------------------------------------------------------------------------------------
+ * */
+
 void send_response(int client_fd, const char *status, const char *content_type, const char *body) {
     char response[RESPONSE_SIZE];
     int resp_len = snprintf(response, sizeof(response),
@@ -47,7 +75,42 @@ void send_response(int client_fd, const char *status, const char *content_type, 
     }
 }
 
-//Sending file responses
+
+/*-----------------------------------------------------------------------------------------------------------------------------------------------------
+ * Send File Response
+ *-----------------------------------------------------------------------------------------------------------------------------------------------------
+ * For the send_file_response function, we take the following as input:
+ *
+ *      1) client_file_descriptor
+ *      2) filename (the name of the file to be served)
+ *
+ * What this function does:
+ *      - Attempts to open the specified file in binary read mode.
+ *      - If the file is not found, sends a 404 Not Found response.
+ *      - Uses stat() to determine the file size for the Content-Length header.
+ *      - Reads the entire file content into a buffer.
+ *      - Determines the correct Content-Type based on the file extension (using get_mime_type).
+ *      - Prepares the HTTP response headers as follows:
+ *
+ *          "HTTP/1.1 200 OK\r\n"
+ *          "Content-Type: {mime_type}\r\n"
+ *          "Content-Length: {file_size}\r\n"
+ *          "Connection: close\r\n"
+ *          "\r\n"
+ *          {file_content}
+ *
+ *      - Sends the headers and the file content to the client using the write function.
+ *      - Handles errors such as file not found, stat failure, memory allocation failure, or file read errors,
+ *        and sends appropriate error responses (404 or 500).
+ *
+ * To send the response:
+ *      - First, write() is used to send the headers.
+ *      - Then, write() is used to send the file content buffer.
+ *
+ *-----------------------------------------------------------------------------------------------------------------------------------------------------
+ */
+
+
 void send_file_response(int client_fd, const char* filename){
 	FILE *fp = fopen(filename,"rb");
 	if(!fp){
@@ -97,7 +160,61 @@ void send_file_response(int client_fd, const char* filename){
 
 }
 
-// Handle client requests
+/*-----------------------------------------------------------------------------------------------------------------------------------------------------
+ * Handling CLients
+ * ----------------------------------------------------------------------------------------------------------------------------------------------------
+ *
+ * Since we r using multithreading the thread fn is of the type void* th_fn(void* arg)
+ * we need to get the arg , so we explicitly convert the arg to (int*) [points to int] and then we dereference it
+ *     int client_fd = *(int*)arg;
+ *
+ * dont forget to free the arg as it is allocated on the heap
+ *
+ * What this function does:
+ * 	-Handles clients
+ * 	-Reads the HTTP request
+ * 	-Routes the HTTP request
+ * 	-Sends the appropriate response to the client
+ *
+ * How do HTTP requests look like? 
+ * 	<Request-Line>\r\n
+ *	<Header-Name-1>: <Header-Value-1>\r\n
+ *	<Header-Name-2>: <Header-Value-2>\r\n
+ *	...
+ *	\r\n
+ *	<Optional-Body>
+ *
+ *
+ *
+ * HTTP responses r of this type
+ * 	<Status-Line>\r\n
+ *	<Header-Name-1>: <Header-Value-1>\r\n
+ *	<Header-Name-2>: <Header-Value-2>\r\n
+ *	...\r\n
+ *	\r\n
+ *	<Response Body>
+ *	
+ *
+ * 	So now we need to route to the required path this is done using simple if statements
+ *
+ * 	sscanf - used to parse the req to get the path and method
+ *
+ *	#Routing functions
+ *	1)/ -> Home page
+ *	2)/echo/{something} -> prints {something} as plain text
+ *	3)/file/{filename}  -> downloads the file if it exists
+ *	4)/hello -> hello page
+ *	5)/user-agent -> prints the application , OS ,device type etc
+ *
+ *	Used Status Codes
+ *	200 -> Succesful request
+ *	400 -> Bad request
+ *	404 -> Not Found
+ *	500 -> Internal Server Error
+ *
+ *
+ *-----------------------------------------------------------------------------------------------------------------------------------------------------
+ * */
 void* handle_client(void* arg) {
     int client_fd = *(int*)arg;
     free(arg);
@@ -106,7 +223,7 @@ void* handle_client(void* arg) {
     if (bytes_read <= 0) {
         fprintf(stderr, "Read failed: %s\n", strerror(errno));
         close(client_fd);
-        return NULL;							//since we r returning void*
+        return NULL; // since we are returning void*
     }
     buffer[bytes_read] = '\0';
 
@@ -114,65 +231,60 @@ void* handle_client(void* arg) {
     if (sscanf(buffer, "%15s %1023s", method, path) != 2) {
         fprintf(stderr, "Invalid request format\n");
         close(client_fd);
-        return NULL;							//returning void*
+        return NULL; // returning void*
     }
 
     // Simple routing
     if (strcmp(path, "/") == 0) {
-        send_response(client_fd, "200 OK","html", "<html><h1><b>Hello World!</b></h1></html>");
+        send_response(client_fd, "200 OK", "html", "<html><h1><b>Hello World!</b></h1></html>");
     } else if (strcmp(path, "/hello") == 0) {
-        send_response(client_fd, "200 OK", "html" , "<html>Hello!</html>");
-    }
-    else if(strncmp(path,"/echo/",6)==0){
-	char *body = path+6;
+        send_response(client_fd, "200 OK", "html", "<html>Hello!</html>");
+    } else if (strncmp(path, "/echo/", 6) == 0) {
+        char *body = path + 6;
         if (body) {
-            send_response(client_fd, "200 OK","plain" , body);
-	}
-        else {
-            send_response(client_fd, "400 Bad Request","html", "<html>No body found</html>");
+            send_response(client_fd, "200 OK", "plain", body);
+        } else {
+            send_response(client_fd, "400 Bad Request", "html", "<html>No body found</html>");
         }
+    } else if (strcmp(path, "/user-agent") == 0) {
+        char *headers = strstr(buffer, "\r\n");
+        if (!headers) {
+            send_response(client_fd, "400 Bad Request", "html", "No headers found");
+            return NULL;
+        }
+        headers += 2; // Skip the first \r\n
+
+        // Copy headers to a temp buffer for safe tokenizing
+        char headers_copy[BUFFER_SIZE];
+        strncpy(headers_copy, headers, sizeof(headers_copy) - 1);
+        headers_copy[sizeof(headers_copy) - 1] = '\0';
+
+        // Loop through header lines to find User-Agent
+        char *line = strtok(headers_copy, "\r\n");
+        char *user_agent = NULL;
+        while (line != NULL) {
+            if (strncmp(line, "User-Agent:", 11) == 0) {
+                user_agent = line + 12; // Skip "User-Agent: "
+                break;
+            }
+            line = strtok(NULL, "\r\n");
+        }
+
+        if (user_agent && *user_agent) {
+            send_response(client_fd, "200 OK", "html", user_agent);
+        } else {
+            send_response(client_fd, "404 Not Found", "plain", "User-Agent header not found");
+        }
+    } else if (strncmp(path, "/file/", 6) == 0) {
+        char *filename = path + 6; // Get the filename from the path
+        if (filename && strlen(filename) > 0) {
+            send_file_response(client_fd, filename);
+        } else {
+            send_response(client_fd, "400 Bad Request", "html", "<html>No filename specified</html>");
+        }
+    } else {
+        send_response(client_fd, "404 Not Found", "html", "<html>Not Found</html>");
     }
-    else if(strcmp(path,"/user-agent")==0){
-	char *headers = strstr(buffer, "\r\n");
-    	if (!headers) {
-        	send_response(client_fd, "400 Bad Request","html", "No headers found");
-        	return NULL;
-    	}
-    	headers += 2; // Skip the first \r\n
-
-    	// Copy headers to a temp buffer for safe tokenizing
-    	char headers_copy[BUFFER_SIZE];
-    	strncpy(headers_copy, headers, sizeof(headers_copy) - 1);
-    	headers_copy[sizeof(headers_copy) - 1] = '\0';
-
-    	// Loop through header lines to find User-Agent
-    	char *line = strtok(headers_copy, "\r\n");
-    	char *user_agent = NULL;
-    	while (line != NULL) {
-        if (strncmp(line, "User-Agent:", 11) == 0) {
-            user_agent = line + 12; // Skip "User-Agent: "
-            break;
-        }
-        line = strtok(NULL, "\r\n");
-    	}
-
-    	if (user_agent && *user_agent) {
-        send_response(client_fd, "200 OK","html", user_agent);
-    	} else {
-        send_response(client_fd, "404 Not Found","plain", "User-Agent header not found");
-    	}
-	}
-	else if (strncmp(path, "/file/", 6) == 0) {
- 	   	char *filename = path + 6; // Get the filename from the path
-    		if (filename && strlen(filename) > 0) {
-        	send_file_response(client_fd, filename);
-    		} else {
-        	send_response(client_fd, "400 Bad Request", "html", "<html>No filename specified</html>");
-    		}
-	}
-    	else {
-        	send_response(client_fd, "404 Not Found","html", "<html>Not Found</html>");
-    	}
 
     printf("Handled %s request for %s\n", method, path);
     close(client_fd);
@@ -286,7 +398,7 @@ int main() {
         }
 	//Adding Multi Threading
 	int* client_fd_ptr = (int*)malloc(sizeof(int));      
-	*client_fd_ptr = client_fd;
+	*client_fd_ptr = client_fd;				//Needed to send the arguments
 	
 	pthread_t tid;                //Thread id
 	
