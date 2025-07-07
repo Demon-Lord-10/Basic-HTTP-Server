@@ -179,7 +179,58 @@ void* handle_client(void* arg) {
     return NULL;
 }
 
-// Create, bind, and listen on socket
+/*-----------------------------------------------------------------------------------------------------------------------------------------------------	
+ *	SET UP THE SERVER SOCKET
+ *-----------------------------------------------------------------------------------------------------------------------------------------------------
+ * 	To set up a sever socket we need to do the following
+ * 	create socket -> bind socket to address and port -> Listen -> Accept clients -> do something -> close socket
+ *	
+ *	# CREATE SOCKET
+ * 	we can use the socket(domain,type,protocol)
+ * 	domain -> specifies the communication domain , the address family , here we use AF_INET - IPv4
+ * 	type -> type of socket , we use SOCK_STREAM - TCP (more reliable) else we can use SOCK_DGRAM - UDP(less reliable)
+ * 	protocol -> we use 0 here which lets OS pick the protocol
+ *
+ * 	socket returns an integer , -1 if its unsuccesful amd non negative if successful 
+ *
+ * 	setsockopt -> used to reuse the same address 
+ *	
+ *	struct sockaddr_in serv_addr = {
+        .sin_family = AF_INET,	------------->IPV4 Address family
+        .sin_port = htons(PORT),------------->Port network byte order
+        .sin_addr = { htonl(INADDR_ANY) }---->IPV4 address in network byte order , INADDR_ANY -> local host
+    };
+ *	
+ *	# BINDING
+ *	bind(int sockfd , const struct sockaddr *addr , socklen_t addrlen);
+ *	sockfd -> file descriptor of the socket
+ *	addr -> pointer to struct sockaddr
+ *	addrlen -> size of sockaddr
+ *
+ *	# LISTENING
+ *	listen(int serverfd, number of clients)
+ *	serverfd -> file descriptor 
+ *	number of clients -> maximum number of clients
+ *
+ *	#ACCEPT
+ *      accept(server_fd, (struct sockaddr*)&client_addr, &client_addr_len);
+ *	
+ *	#Enabling MULTI-THREADING
+ *	To do that we use pthread library , pthread -> POSIX thread (OS interface)
+ *
+ *	we follow the following steps
+ *	1) create a fn of the signature -> void* thread_fn(void* arg)
+ *		void* -> generic pointer , can point to anything
+ *	2) pthread_t tid -> thread id
+ *	3) pthread_create() -> create thread returns 0 if fails
+ *		pthread_create(&tid, NULL, thread_fn, arguements for the fn)    ,NULL->thread attributes
+ *	4) Detach or Join threads
+ *
+ *	Detach -> cleans the resources once the function is done executing
+ *	
+ *
+ *-----------------------------------------------------------------------------------------------------------------------------------------------------
+*/
 int setup_server_socket() {
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd == -1) {
