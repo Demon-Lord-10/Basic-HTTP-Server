@@ -1,4 +1,4 @@
-# Socket
+# HTTP SERVER
 
 
 Simple Multithreaded HTTP Server in C
