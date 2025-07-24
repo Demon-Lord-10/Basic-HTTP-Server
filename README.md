@@ -36,24 +36,24 @@ Example Usage
 -------------
 Home:
 ```
-    curl http://localhost:4221/
+curl http://localhost:4221/
 ```
 Hello:
 ```
-    curl http://localhost:4221/hello
+curl http://localhost:4221/hello
 ```
 Echo:
 ```
-    curl http://localhost:4221/echo/yourtext
+curl http://localhost:4221/echo/yourtext
 ```
 File:
     Place a file (e.g., test.txt) in the server directory, then:
 ```
-    curl http://localhost:4221/file/test.txt
+curl http://localhost:4221/file/test.txt
 ```
 User-Agent:
 ```
-    curl http://localhost:4221/user-agent
+curl http://localhost:4221/user-agent
 ```
 Project Structure
 -----------------
