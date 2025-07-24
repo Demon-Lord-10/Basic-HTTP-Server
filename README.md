@@ -22,8 +22,9 @@ Features
 
 How to Build
 ------------
+```
 gcc -o http_server http_server.c -lpthread
-
+```
 How to Run
 ----------
 ./http_server
