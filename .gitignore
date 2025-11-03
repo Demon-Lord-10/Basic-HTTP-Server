@@ -1,0 +1,25 @@
+# Build artifacts
+*.o
+*.so
+*.a
+build/
+dist/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+*.tmp
+temp/
+
+# Environment files
+.env
+config.json
+
